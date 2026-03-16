@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "RAF HRIS Backend",
-    "description": "Postman collection for the currently implemented RAF HRIS backend endpoints. This covers the completed Phase 1 and Phase 2 baseline APIs.",
+    "description": "Postman collection for the currently implemented RAF HRIS backend endpoints. This covers completed Foundation, Auth, RBAC/Scope, and HR Core (branches/departments/job titles) APIs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "6a18b9bf-f538-47ba-904e-47f3d3f9d4f5"
   },
@@ -462,6 +462,332 @@
                 "{{targetEmployeeId}}",
                 "departments",
                 "sync"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "HR Core",
+      "item": [
+        {
+          "name": "GET Branches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/branches?per_page=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "branches"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"POSTMAN-BR\",\n  \"name\": \"Postman Branch\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "branches"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Branch",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"POSTMAN-BR\",\n  \"name\": \"Postman Branch Updated\",\n  \"status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/branches/{{branchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "branches",
+                "{{branchId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/departments?branch_id={{branchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "departments"
+              ],
+              "query": [
+                {
+                  "key": "branch_id",
+                  "value": "{{branchId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branch_id\": {{branchId}},\n  \"parent_id\": null,\n  \"name\": \"Postman Department\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/departments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "departments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Department",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branch_id\": {{branchId}},\n  \"parent_id\": null,\n  \"name\": \"Postman Department Updated\",\n  \"status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/departments/{{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "departments",
+                "{{departmentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Job Titles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/job-titles?department_id={{departmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-titles"
+              ],
+              "query": [
+                {
+                  "key": "department_id",
+                  "value": "{{departmentId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Job Title",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department_id\": {{departmentId}},\n  \"name\": \"Postman Job Title\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/job-titles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-titles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Job Title",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department_id\": {{departmentId}},\n  \"name\": \"Postman Job Title Updated\",\n  \"status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/job-titles/{{jobTitleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-titles",
+                "{{jobTitleId}}"
               ]
             }
           },
