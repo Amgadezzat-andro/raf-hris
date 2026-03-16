@@ -1,0 +1,1064 @@
+RAF HRIS Backend Implementation Contract
+Purpose
+This document is the backend-focused split of the master HRIS contract.
+This file is intended to stand on its own for backend delivery.
+Use this file for: - Laravel application structure and delivery rules - endpoint implementation ownership - request and resource naming standards - migration
+and seeder planning - RBAC and permission seeding
+Master reference for full cross-team context and full payload examples: - HRIS_API_Architecture_And_Contracts.md
+Table of Contents
+Technology Alignment
+Shared Cross-Client Rules
+Backend Architecture Rules
+Standard API Envelope
+Shared Resource Shapes
+Core Backend ERD
+Endpoint Module Ownership
+Laravel Request and Resource Class Matrix
+Database Migration and Seeder Matrix
+Permission Seed Matrix
+Delivery Notes
+Technology Alignment
+Backend
+Laravel 12 style application structure
+PostgreSQL
+Laravel Sanctum for API token authentication
+Spatie Laravel Permission for RBAC
+iamfarhad/laravel-audit-log for audit logging
+Form Requests for validation
+Policies for authorization
+API Resources for response serialization
+Actions or Services for business logic
+Shared Cross-Client Rules
+Authentication Strategy
+All clients authenticate against Laravel API using Sanctum token-based authentication.
+Backend returns a bearer token after successful login.
+Frontend stores the token in a secure app session layer and never duplicates auth logic in every page.
+Mobile stores the token in secure storage and injects it through a shared Dio interceptor.
+Authorization Strategy
+Authorization is enforced only by backend policies and scope filters.
+Frontend and mobile may hide unavailable actions for UX, but backend remains the source of truth.
+Permissions are returned in the auth profile payload and used only for presentation logic.
+Time and Date Strategy
+All timestamps are ISO 8601 in UTC.
+Date-only values use YYYY-MM-DD .
+Clients format dates locally for display only.Enum Strategy
+All enum-like fields use snake_case strings.
+Example: pending , approved , rejected , active , inactive .
+Pagination Strategy
+All list endpoints return the same pagination envelope.
+Default per_page is 20 .
+Maximum per_page is 100 .
+Error Strategy
+Validation errors always return HTTP 422 .
+Forbidden actions always return HTTP 403 .
+Missing resources always return HTTP 404 .
+Unexpected failures always return HTTP 500 with no internal trace data exposed.
+Backend Architecture Rules
+Controller Rule
+Controllers only map request to action and return API Resource responses.
+Controllers must not contain business rules, direct query building, or status transition logic.
+Validation Rule
+Each write endpoint uses a dedicated Form Request.
+Shared validators are allowed only for truly identical payloads.
+Authorization Rule
+Use Policies for entity-level authorization.
+Use query scope filters for list visibility by branch and department.
+Do not hard-code access rules in controllers.
+Domain Rule
+Business actions such as approve, reject, check-in, check-out, move stage, run payroll, and run report must be handled by dedicated action or service
+classes.
+Transaction Rule
+Multi-table mutations must use database transactions.
+Approval actions, balance adjustments, and payroll publication must always be transactional.
+Response Rule
+Always serialize responses through API Resources or DTO transformers.
+Never return raw Eloquent models directly.
+Audit Rule
+Audit capture must occur in shared infrastructure or model observers where appropriate.
+Controllers must not manually assemble audit payloads inline.
+Standard API Envelope
+Success Response
+{
+"message": "Request completed successfully.",
+"data": {},
+"meta": {}
+}Paginated Response
+{
+"message": "Request completed successfully.",
+"data": [],
+"meta": {
+"page": 1,
+"per_page": 20,
+"total": 120,
+"last_page": 6
+}
+}
+Validation Error Response
+{
+"message": "The given data was invalid.",
+"errors": {
+"email": ["The email field is required."],
+"password": ["The password field is required."]
+}
+}
+Forbidden Response
+{
+"message": "You are not allowed to perform this action."
+}
+Not Found Response
+{
+"message": "Resource not found."
+}
+Shared Resource Shapes
+Employee Summary
+{
+"id": 101,
+"employee_code": "EMP-000101",
+"full_name": "John Doe",
+"email": "john.doe@raf.local",
+"status": "active",
+"branch": {
+"id": 1,
+"name": "HQ"
+},
+"department": {
+"id": 4,
+"name": "HR"
+},
+"job_title": {
+"id": 7,
+"name": "HR Manager"
+}
+}
+Branch Summary
+{
+"id": 1,"code": "HQ",
+"name": "Headquarters",
+"status": "active"
+}
+Department Summary
+{
+"id": 4,
+"name": "Human Resources",
+"parent_id": null,
+"branch_id": 1,
+"status": "active"
+}
+Notification Summary
+{
+"id": 501,
+"type": "leave_request_approved",
+"title": "Leave approved",
+"body": "Your leave request has been approved.",
+"is_read": false,
+"created_at": "2026-03-11T08:00:00Z"
+}
+Core Backend ERD
+Modeling Notes
+Use Spatie tables for role and permission assignment.
+Keep employee home assignment separate from branch and department access scope.
+Prefer lean transactional tables with indexed foreign keys over duplicated summary tables.
+Keep configuration-like rules in dedicated definition tables and only use JSON where flexibility is required.
+Core Entity Groups
+Organization and HR core: branches , departments , job_titles , employees , contracts
+Access control and scope: roles , permissions , role_has_permissions , model_has_roles , model_has_permissions , employee_branches , employee_departments
+Operations: attendance_records , shift_templates , shifts , shift_swap_requests , tasks , leave_types , leave_balances , leave_requests , overtime_requests
+Recruitment and lifecycle: job_postings , applicants , job_applications , application_stage_history , onboarding_checklists , onboarding_tasks ,
+offboarding_checklists , offboarding_tasks
+Planning, talent, learning, payroll, and reporting: headcount_plans , position_forecasts , competencies , competency_assessments , kpi_definitions ,
+scorecards , kpi_scores , training_courses , training_enrollments , payroll_runs , payroll_run_items , notifications , report_definitions , report_runs
+Relational Data Dictionary
+Organization and Access Control
+TableCore ColumnsIndexesConstraintsRelations
+branchesid , code , name , status ,
+timestampsunique code , index statuscode required and uniqueparent of departments , home
+branch for employees , planning
+and payroll branch anchor
+departmentsid , branch_id , parent_id ,index branch_id , parent_id ,name , status , timestampsstatusFK branch_id -> branches.id ,
+nullable FK parent_id ->departments.idchild of branches , parent of
+job_titles , home department
+for employees
+FK department_id ->child of departments ,
+departments.idreferenced by employees ,
+headcount_plans ,
+job_titles
+id , department_id , name ,
+index department_id , status
+status , timestamps
+position_forecasts
+employees
+id , employee_code ,
+branch_id , department_id ,unique employee_code , unique
+email , index branch_id ,
+department_id , job_title_id ,job_title_id , hire_date ,statusFKs to branches , departments ,
+job_titles ; status
+constrained to approved enum
+set
+index employee_id , status ,FK employee_id ->
+full_name , email , phone ,
+parent of most transactional HR
+tables
+child of employees
+status , timestamps
+contracts
+id , employee_id , type ,contracts
+id , employee_id , type ,index employee_id , status ,
+start_date , end_date ,start_date
+salary , currency , status ,
+timestamps
+FK employee_id ->
+employees.id ; one active
+contract per employee enforced
+by service rule or partial indexchild of employees
+rolesSpatie standard columns: id ,
+name , guard_nameunique name + guard_nameSpatie-managed uniquenessmany-to-many with permissions
+and models
+permissionsSpatie standard columns: id ,
+name , guard_nameunique name + guard_nameSpatie-managed uniquenessmany-to-many with roles and
+models
+role_has_permissionspermission_id , role_idcomposite PK and lookup indexes
+per SpatieFK permission_id ->
+permissions.id , FK role_id ->joins roles to permissions
+roles.id
+model_has_roles
+role_id , model_type ,
+composite PK/index per SpatieFK role_id -> roles.idmaps employees to roles
+composite PK/index per SpatieFK permission_id ->permissions.iddirect permission grants to
+employees
+FK employee_id ->
+employees.id , FK branch_id ->branch access scope extension
+for employees
+model_id
+model_has_permissions
+permission_id , model_type ,
+model_id
+employee_branches
+id , employee_id , branch_id ,
+timestamps
+unique employee_id +
+branch_id , index branch_id
+branches.id
+employee_departments
+id , employee_id ,
+department_id , timestamps
+unique employee_id +
+department_id , index
+department_id
+FK employee_id ->
+employees.id , FK
+department access scope
+extension for employees
+department_id ->
+departments.id
+Operations and Workforce Transactions
+TableCore ColumnsIndexes
+shift_templatesid , name , start_time ,index status
+end_time , break_minutes ,
+ConstraintsRelations
+break_minutes >= 0 ; statusparent of shifts
+enum
+status , timestamps
+shifts
+id , employee_id ,
+shift_template_id ,
+shift_date , status ,
+unique employee_id +
+shift_date , index
+shift_template_id , status
+timestamps
+attendance_records
+id , employee_id , shift_id ,
+attendance_date ,
+check_in_at , check_out_at ,
+source , status , timestamps
+tasks
+id , employee_id , shift_id ,
+title , description , due_at ,
+id , requester_employee_id ,
+requester_shift_id ,
+parent of attendance_records ,
+tasks , shift_swap_requests
+shift_template_id ->
+shift_templates.id
+unique employee_id +
+attendance_date , index
+shift_id , status , date range
+indexesFK employee_id ->
+employees.id , nullable FK
+index employee_id , shift_id ,
+status , due_atFK employee_id ->
+employees.id , nullable FK
+status , timestamps
+shift_swap_requests
+FK employee_id ->
+employees.id , FK
+child of employees , optionally
+linked to shifts
+shift_id -> shifts.id
+child of employees , optionally
+attached to shifts
+shift_id -> shifts.id
+index requester_employee_id ,
+target_employee_id , statusFKs to employees and shifts ;
+requester and target cannot be
+same business row pairlinks employee-to-employee swap
+workflow
+unique code , index statusunique business codeparent of leave_balances and
+target_employee_id ,
+target_shift_id , reason ,
+status , timestamps
+leave_types
+id , name , code ,
+default_days , status ,
+leave_requests
+timestamps
+leave_balances
+id , employee_id ,unique employee_id +
+leave_type_id , balance_days ,leave_type_id
+timestamps
+FK employee_id ->
+employees.id , FK
+one balance row per employee
+and leave type
+leave_type_id ->
+leave_types.id
+leave_requests
+id , employee_id ,
+leave_type_id , start_date ,
+end_date , reason , status ,
+index employee_id ,
+leave_type_id , status ,
+start_date , end_dateFKs to employees and
+leave_types ; end_date >=
+submitted by employee, typed by
+leave type
+index employee_id ,
+request_date , statusFK employee_id ->
+employees.id ; hours > 0overtime request workflow for
+employees
+start_date
+approved_by , timestamps
+overtime_requests
+id , employee_id ,
+request_date , hours ,
+reason , status ,
+approved_by , timestamps
+Recruitment and Employee Lifecycle
+TableCore ColumnsIndexesConstraintsRelations
+job_postingsid , branch_id ,index branch_id ,
+department_id , closing_date ,FKs to branches and
+departments ; vacancies > 0parent of job_applications
+department_id , title ,vacancies , closing_date ,statusunique applicant email unlessparent of job_applications
+status , timestamps
+applicants
+id , full_name , email ,
+unique email , index full_nameapplicants
+id , full_name , email ,
+unique email , index full_nameunique applicant email unless
+business allows duplicatesparent of job_applications
+unique applicant_id +
+job_posting_id , index stage ,FK applicant_id ->
+applicants.id , FKchild of applicant and posting
+job_posting_id , stage ,status , timestampsstatus
+phone , timestamps
+job_applications
+id , applicant_id ,
+job_posting_id ->
+job_postings.id
+application_stage_history
+id , job_application_id ,
+from_stage , to_stage ,
+index job_application_id ,
+to_stage , acted_by
+comment , acted_by ,
+timestamps
+onboarding_checklists
+id , employee_id , title ,
+index employee_id , status
+id , onboarding_checklist_id ,index
+title , status ,onboarding_checklist_id ,
+completed_by , completed_at ,status
+id , employee_id , title ,
+parent of onboarding_tasks
+FK onboarding_checklist_id ->
+onboarding_checklists.id ,
+nullable FK completed_by ->
+task items for onboarding
+checklist
+employees.id
+index employee_id , status
+status , timestamps
+offboarding_tasks
+FK employee_id ->
+employees.id
+timestamps
+offboarding_checklists
+audit trail for recruitment stage
+movement
+acted_by -> employees.id
+status , timestamps
+onboarding_tasks
+FK job_application_id ->
+job_applications.id , FK
+FK employee_id ->
+parent of offboarding_tasks
+employees.id
+id ,index
+offboarding_checklist_id ,offboarding_checklist_id ,
+title , status ,status
+completed_by , completed_at ,
+FK offboarding_checklist_id -
+> offboarding_checklists.id ,
+nullable FK completed_by ->
+task items for offboarding
+checklist
+employees.id
+timestamps
+Planning, Talent, Learning, Payroll, and Reporting
+TableCore ColumnsIndexesConstraintsRelations
+headcount_plansid , branch_id ,unique branch_id +department_id + job_title_idFKs to branches , departments ,
+job_titles ;planning record by org slice
+department_id , job_title_id ,period , planned_headcount ,
+timestamps+ periodplanned_headcount >= 0id , branch_id ,unique branch_id +department_id , job_title_id ,department_id + job_title_idFKs to branches , departments ,
+job_titles ;period , forecast_headcount ,
+timestamps+ periodforecast_headcount >= 0id , name , description ,
+timestampsunique nameunique competency nameid , employee_id ,index employee_id ,
+competency_id , created date
+position_forecasts
+competencies
+competency_assessments
+competency_id , rating ,
+forecast record by org slice
+parent of
+competency_assessments
+comment , timestamps
+FK employee_id ->
+employees.id , FK
+latest assessment powers
+competency profile
+competency_id ->
+competencies.id ; rating
+bounded by agreed scale
+kpi_definitions
+id , name , weight ,
+index status , formula_typeweight >= 0 ; status enumparent of kpi_scores
+index employee_id ,
+period_start , period_end ,FK employee_id ->
+employees.id ; one scorecard per
+employee and review period by
+business ruleparent of kpi_scores
+FK scorecard_id ->
+scorecards.id , FKscore line items inside scorecard
+formula_type , status ,
+timestamps
+scorecards
+id , employee_id ,
+period_start , period_end ,
+kpi_scores
+status , aggregate fields,
+timestampsstatus
+id , scorecard_id ,unique scorecard_id +
+kpi_definition_id , score ,kpi_definition_id
+comment , timestamps
+kpi_definition_id ->
+kpi_definitions.id
+training_courses
+id , title , description ,
+status , timestamps
+training_enrollments
+id , course_id , employee_id ,
+progress_percent , status ,
+index status , title search index
+if neededstatus enumparent of training_enrollments
+unique course_id +
+employee_id , index statusFK course_id ->enrollment bridge between
+courses and employees
+timestamps
+training_courses.id , FK
+employee_id -> employees.id ;
+progress_percent between 0
+and 100
+payroll_runs
+payroll_run_items
+id , branch_id ,index branch_id ,FK branch_id -> branches.id ;
+period_start , period_end ,period_start , period_end ,status , timestampsstatusone run per branch-period by
+business rule
+id , payroll_run_id ,unique payroll_run_id +
+employee_id , indexFK payroll_run_id ->
+payroll_runs.id , FK
+employee_idemployee_id -> employees.id
+id , employee_id , type ,index employee_id , is_read ,FK employee_id ->
+title , body , is_read ,created_atemployees.id
+employee_id , totals, timestamps
+notifications
+created_at
+parent of payroll_run_items
+line items for payroll run
+inbox rows for employeesreport_definitions
+id , name , module ,
+index modulemodule constrained to known
+report modulesparent of report_runs
+requested_by , status ,index report_definition_id ,
+requested_by , status ,FK report_definition_id ->
+report_definitions.id , FKexecution history for saved report
+definitions
+filters_json , result_json ,created_at
+filters_json , timestamps
+report_runs
+id , report_definition_id ,
+requested_by ->
+timestamps
+employees.id
+ERD Source Note
+This embedded ERD is the backend implementation view derived from the SRS-based ERD in HRIS_SRS_Based_ERD.md.
+Use this backend file for delivery decisions and the SRS ERD file when you need the original broader modeling rationale.
+Endpoint Module Ownership
+This split keeps backend ownership by domain. Use the master contract for full request and response examples where needed.
+ModuleEndpoint Surface
+System and Authentication/api/v1/health , /api/v1/auth/login , /api/v1/auth/logout , /api/v1/auth/me ,
+/api/v1/auth/refresh
+RBAC and Scope
+/api/v1/roles , /api/v1/permissions , /api/v1/employees/{employee}/roles ,
+/api/v1/employees/{employee}/branches/sync ,
+/api/v1/employees/{employee}/departments/sync
+HR Core
+/api/v1/branches , /api/v1/departments , /api/v1/job-titles ,
+/api/v1/employees , /api/v1/contracts
+Attendance
+/api/v1/attendance/check-in , /api/v1/attendance/check-out ,
+/api/v1/attendance , /api/v1/attendance/{attendance}/corrections
+Shift Management
+/api/v1/shift-templates , /api/v1/shift-assignments ,
+/api/v1/employees/{employee}/shifts
+Leave
+/api/v1/leave-types , /api/v1/leave-balances , /api/v1/leave-requests ,
+/api/v1/employees/{employee}/leave-balances/adjust
+Overtime
+/api/v1/overtime-requests , /api/v1/overtime-summaries/monthly
+Notifications
+/api/v1/device-tokens , /api/v1/notifications , /api/v1/notifications/read-
+all
+Swap Requests and Tasks/api/v1/swap-requests , /api/v1/tasks
+Recruitment/api/v1/job-postings , /api/v1/applicants , /api/v1/applications ,
+/api/v1/applications/{application}/move-stage ,
+/api/v1/applications/{application}/mark-hired
+Onboarding and Offboarding
+/api/v1/onboarding-checklists , /api/v1/onboarding-tasks/{task}/complete ,
+/api/v1/offboarding-checklists , /api/v1/offboarding-tasks/{task}/complete
+Workforce Planning/api/v1/headcount-plans , /api/v1/workforce-forecasts
+Competency/api/v1/competencies , /api/v1/competency-assessments ,
+/api/v1/employees/{employee}/competency-profile
+Performance and KPI
+/api/v1/kpis , /api/v1/scorecards , /api/v1/employees/{employee}/performance-
+summary
+Training/api/v1/courses , /api/v1/enrollments , /api/v1/quizzes/{quiz}/submit
+Payroll/api/v1/payroll-runs , /api/v1/payslips
+Reports/api/v1/report-definitions , /api/v1/report-runs/{reportRun}
+Laravel Request and Resource Class Matrix
+Naming Rule
+Use Index<Domain>Request for filter-heavy list endpoints.
+Use Store<Domain>Request and Update<Domain>Request for create and update endpoints.
+Use <Action><Domain>Request for state transitions and one-off commands.
+Use <Domain>Resource for single records and <Domain>Resource::collection(...) for paginated lists.
+Use dedicated action classes for every approval, sync, publication, and workflow transition.
+ModuleEndpointsForm Request ClassesAPI Resource ClassesAction or Service Classes
+System and AuthGET /health , POSTLoginRequest ,HealthResource ,LoginAction , LogoutAction ,System and Auth
+GET /health , POSTLoginRequest ,HealthResource ,LoginAction , LogoutAction ,
+/auth/login , POSTRefreshTokenRequestAuthSessionResource ,RefreshTokenAction ,
+/auth/logout , GET /auth/me ,
+AuthProfileResource
+POST /auth/refresh
+RBAC and Scope
+GetCurrentEmployeeProfileAct
+ion
+GET/POST /roles , GETIndexRoleRequest ,RoleResource ,CreateRoleAction ,
+/permissions , POSTStoreRoleRequest ,PermissionResource ,AssignRolesToEmployeeAction ,
+/employees/{employee}/roles ,AssignEmployeeRolesRequest ,EmployeeRoleAssignmentResourSyncEmployeeBranchScopeActio
+PUTSyncEmployeeBranchesRequest ,ce , EmployeeScopeResourcen,
+/employees/{employee}/brancheSyncEmployeeDepartmentsRequeSyncEmployeeDepartmentScopeA
+s/sync , PUTstction
+/employees/{employee}/departm
+ents/sync
+Branches
+GET/POST /branches , PUTIndexBranchRequest ,
+/branches/{branch}StoreBranchRequest ,
+BranchResource
+CreateBranchAction ,
+UpdateBranchAction
+UpdateBranchRequest
+Departments
+GET/POST /departments , PUTIndexDepartmentRequest ,
+/departments/{department}StoreDepartmentRequest ,
+DepartmentResource
+CreateDepartmentAction ,
+UpdateDepartmentAction
+UpdateDepartmentRequest
+Job Titles
+GET/POST /job-titles , PUTIndexJobTitleRequest ,
+/job-titles/{jobTitle}StoreJobTitleRequest ,
+JobTitleResource
+CreateJobTitleAction ,
+UpdateJobTitleAction
+UpdateJobTitleRequest
+Employees
+GET/POST /employees , GET/PUTIndexEmployeeRequest ,EmployeeSummaryResource ,CreateEmployeeAction ,
+/employees/{employee}StoreEmployeeRequest ,EmployeeDetailResourceUpdateEmployeeAction ,
+UpdateEmployeeRequest
+Contracts
+GETIndexEmployeeContractReques
+/employees/{employee}/contract , StoreContractRequest ,
+ts , POSTUpdateContractRequest
+GenerateEmployeeCodeService
+ContractResource
+CreateContractAction ,
+UpdateContractAction
+/employees/{employee}/contrac
+ts , GET/PUT
+/contracts/{contract}
+Attendance
+POST /attendance/check-in ,CheckInAttendanceRequest ,POST /attendance/check-out ,CheckOutAttendanceRequest ,CheckOutAttendanceAction ,
+GET /attendance , GETIndexAttendanceRequest ,CorrectAttendanceAction
+/employees/{employee}/attendaIndexEmployeeAttendanceRequence , POSTst , CorrectAttendanceRequest
+AttendanceResource
+CheckInAttendanceAction ,
+/attendance/{attendance}/corr
+ections
+Shift Management
+GET/POST/PUT /shift-IndexShiftTemplateRequest ,ShiftTemplateResource ,CreateShiftTemplateAction ,
+templates , GET/POST /shift-StoreShiftTemplateRequest ,ShiftAssignmentResourceUpdateShiftTemplateAction ,
+assignments , GETUpdateShiftTemplateRequest ,/employees/{employee}/shiftsIndexShiftAssignmentRequest ,
+AssignShiftAction
+StoreShiftAssignmentRequest ,
+IndexEmployeeShiftRequest
+Leave
+GET /leave-types , GETIndexLeaveTypeRequest ,LeaveTypeResource ,SubmitLeaveRequestAction ,
+/leave-balances , GETIndexLeaveBalanceRequest ,LeaveBalanceResource ,ApproveLeaveRequestAction ,
+/employees/{employee}/leave-IndexEmployeeLeaveBalanceReqLeaveRequestResourceRejectLeaveRequestAction ,
+balances , POST /leave-uest ,requests , GET /leave-StoreLeaveRequestRequest ,requests , GET /leave-IndexLeaveRequestRequest ,requests/{leaveRequest} ,ApproveLeaveRequest ,POST /leave-RejectLeaveRequest ,requests/{leaveRequest}/approAdjustLeaveBalanceRequest
+AdjustLeaveBalanceAction
+ve , POST /leave-
+requests/{leaveRequest}/rejec
+t , POST
+/employees/{employee}/leave-
+balances/adjust
+Overtime
+POST /overtime-requests , GETStoreOvertimeRequest ,OvertimeRequestResource ,SubmitOvertimeRequestAction ,
+/overtime-requests , GETIndexOvertimeRequest ,OvertimeSummaryResourceApproveOvertimeRequestActio
+/overtime-ApproveOvertimeRequest ,n,
+requests/{overtimeRequest} ,RejectOvertimeRequest ,RejectOvertimeRequestAction ,
+POST /overtime-MonthlyOvertimeSummaryRequesBuildMonthlyOvertimeSummaryA
+requests/{overtimeRequest}/aptction
+prove , POST /overtime-
+requests/{overtimeRequest}/re
+ject , GET /overtime-
+summaries/monthly
+Notifications
+Swap Requests and Tasks
+POST /device-tokens , GETStoreDeviceTokenRequest ,DeviceTokenResource ,RegisterDeviceTokenAction ,
+/notifications , POSTIndexNotificationRequest ,NotificationResourceMarkNotificationReadAction ,
+/notifications/{notification}MarkNotificationReadRequest ,MarkAllNotificationsReadActi
+/read , POSTMarkAllNotificationsReadRequon
+/notifications/read-allestPOST /swap-requests , GETStoreSwapRequestRequest ,SwapRequestResource ,SubmitSwapRequestAction ,
+/swap-requests , GET /swap-IndexSwapRequestRequest ,TaskResourceApproveSwapRequestAction ,
+requests/{swapRequest} , POSTApproveSwapRequest ,RejectSwapRequestAction ,
+/swap-RejectSwapRequest ,CreateTaskAction ,
+requests/{swapRequest}/approvIndexTaskRequest ,UpdateTaskAction
+e , POST /swap-StoreTaskRequest ,requests/{swapRequest}/rejecUpdateTaskRequestrequests/{swapRequest}/rejec
+UpdateTaskRequest
+t , GET/POST /tasks , PUT
+/tasks/{task}
+Recruitment
+GET/POST/PUT /job-postings ,IndexJobPostingRequest ,JobPostingResource ,CreateJobPostingAction ,
+GET/POST /applicants ,StoreJobPostingRequest ,ApplicantResource ,UpdateJobPostingAction ,
+GET/POST /applications , POSTUpdateJobPostingRequest ,ApplicationResource ,CreateApplicantAction ,
+/applications/{application}/mIndexApplicantRequest ,HiredApplicationResourceCreateApplicationAction ,
+ove-stage , POSTStoreApplicantRequest ,MoveApplicationStageAction ,
+/applications/{application}/mIndexApplicationRequest ,MarkApplicationHiredAction
+ark-hiredStoreApplicationRequest ,
+MoveApplicationStageRequest ,
+MarkApplicationHiredRequest
+Onboarding and Offboarding
+GET/POST /onboarding-IndexOnboardingChecklistRequOnboardingChecklistResource ,CreateOnboardingChecklistAct
+checklists , GET /onboarding-est ,OnboardingTaskResource ,ion ,
+AddOnboardingTaskAction ,
+checklists/{checklist} , POSTStoreOnboardingChecklistRequOffboardingChecklistResourc
+/onboarding-est ,e , OffboardingTaskResource
+checklists/{checklist}/tasks ,StoreOnboardingTaskRequest ,
+CompleteOnboardingTaskActio
+n,
+POST /onboarding-CompleteOnboardingTaskRequesCreateOffboardingChecklistAc
+tasks/{task}/complete ,t,tion ,
+AddOffboardingTaskAction ,
+GET/POST /offboarding-IndexOffboardingChecklistReqchecklists , GETuest ,CompleteOffboardingTaskActio
+/offboarding-StoreOffboardingChecklistReqn
+checklists/{checklist} , POSTuest ,/offboarding-StoreOffboardingTaskRequest ,checklists/{checklist}/tasks ,CompleteOffboardingTaskReque
+POST /offboarding-st
+tasks/{task}/complete
+Workforce Planning
+GET/POST /headcount-plans ,IndexHeadcountPlanRequest ,HeadcountPlanResource ,
+GET/POST /workforce-StoreHeadcountPlanRequest ,WorkforceForecastResource
+forecastsIndexWorkforceForecastReques
+CreateHeadcountPlanAction ,
+CreateWorkforceForecastActio
+n
+t,
+StoreWorkforceForecastReques
+t
+Competency
+GET/POST /competencies ,IndexCompetencyRequest ,CompetencyResource ,GET/POST /competency-StoreCompetencyRequest ,CompetencyAssessmentResourc
+CreateCompetencyAction ,
+CreateCompetencyAssessmentAc
+assessments , GETIndexCompetencyAssessmentReqe , CompetencyProfileResourcetion ,
+/employees/{employee}/competeuest ,BuildEmployeeCompetencyProfi
+ncy-profileStoreCompetencyAssessmentReqleAction
+uest ,
+EmployeeCompetencyProfileReq
+uest
+Performance and KPI
+GET/POST /kpis , GETIndexKpiRequest ,KpiResource ,CreateKpiAction ,
+/scorecards , GETStoreKpiRequest ,ScorecardResource ,SubmitScorecardScoresAction ,
+/scorecards/{scorecard} ,IndexScorecardRequest ,PerformanceSummaryResourcePOSTSubmitScorecardScoresReques/scorecards/{scorecard}/scoret,s , GETEmployeePerformanceSummaryRe
+/employees/{employee}/performquest
+BuildPerformanceSummaryActio
+n
+ance-summary
+Training
+GET/POST /courses , GETIndexCourseRequest ,CourseResource ,/courses/{course} , POSTStoreCourseRequest ,EnrollmentResource ,
+CreateCourseAction ,
+EnrollEmployeeInCourseActio
+/courses/{course}/enrollmentStoreCourseEnrollmentRequesQuizSubmissionResourcen,
+s , GET /enrollments , POSTt , IndexEnrollmentRequest ,UpdateEnrollmentProgressActi
+/enrollments/{enrollment}/proUpdateEnrollmentProgressRequon , SubmitQuizAction
+gress , POSTest , SubmitQuizRequest
+/quizzes/{quiz}/submit
+Payroll
+GET/POST /payroll-runs , GETIndexPayrollRunRequest ,PayrollRunResource ,CreatePayrollRunAction ,
+/payroll-runs/{payrollRun} ,StorePayrollRunRequest ,PayrollLineItemResource ,ApprovePayrollRunAction ,
+POST /payroll-ApprovePayrollRunRequest ,PayslipResourceruns/{payrollRun}/approve ,IndexPayrollLineItemRequest ,GET /payroll-IndexPayslipRequest
+GeneratePayrollLineItemsActi
+on
+runs/{payrollRun}/line-items ,
+GET /payslips , GET
+/payslips/{payslip}
+Reports
+GET/POST /report-IndexReportDefinitionRequesReportDefinitionResource ,CreateReportDefinitionActio
+definitions , GET /report-t,ReportRunResourcen , RunReportDefinitionAction
+definitions/{reportDefinitionStoreReportDefinitionReques
+} , POST /report-t,
+definitions/{reportDefinitionRunReportDefinitionRequest ,
+}/run , GET /report-ShowReportRunRequest
+runs/{reportRun}
+Backend Folder Placement
+app/Http/Requests/Api/V1/<Module>/...
+app/Http/Resources/Api/V1/<Module>/...
+app/Actions/<Module>/...app/Policies/...
+app/Services/<Module>/...
+only when logic is cross-action or infrastructure-oriented.
+Database Migration and Seeder Matrix
+Migration Rules
+Use timestamped Laravel migrations under database/migrations with one responsibility per migration.
+Create lookup and structure tables before transactional tables.
+Add foreign keys explicitly and prefer cascadeOnUpdate() with deliberate delete behavior.
+Use PostgreSQL enums only if the team is committed to DB-level enum maintenance; otherwise store enum-like values as indexed strings validated in
+code.
+Every table with workflow relevance should include audit-friendly timestamps and actor references where needed.
+DomainCore TablesKey ColumnsForeign Keys and IndexesSeeder Classes
+Access Controlroles , permissions ,Spatie standard columns plus
+guard nameIndex name + guard_name ;
+polymorphic indexes per Spatie
+defaultsPermissionSeeder ,
+BranchSeeder ,
+job_titles.department_id ,Unique branches.code ; index
+status ; FKs
+departments.branch_id ,
+departments.parent_id ,statusjob_titles.department_idemployees ,employee_code , full_name ,employee_branch_scopes ,email , phone , hire_date ,employee_department_scopesstatusUnique employee_code , email ;
+FKs to branch, department, job
+title; indexes on status ,
+branch_id , department_id ,
+model_has_roles ,
+model_has_permissions ,
+RoleSeeder ,
+RolePermissionSeeder
+role_has_permissions
+Organization
+branches , departments ,branches.code ,
+job_titlesbranches.name ,
+departments.parent_id ,
+Employees
+DepartmentSeeder ,
+JobTitleSeeder
+EmployeeSeeder ,
+EmployeeScopeSeeder
+job_title_id
+Contracts
+contracts
+employee_id , type ,
+start_date , end_date ,
+salary , currency , status
+Attendance
+Shift Management
+ContractSeeder
+AttendanceSeeder
+attendance_records ,employee_id ,Unique or constrained index onattendance_correctionsattendance_date ,employee_id +check_in_at , check_out_at ,attendance_date ; FK correctionstatus , geo fields, sourceto record and approver; indexes
+on date range and statustemplate start and end times,
+break minutes, assignment date,
+statusUnique employee_id + date if
+only one shift per day; FKs to
+employee and template; indexes
+on branch lookup through
+employee if neededShiftTemplateSeeder ,
+leave day allocations, request
+dates, status, approver commentsFKs to employee, leave type,
+approver; indexes on status ,
+start_date , end_date ; unique
+balance per employee_id +LeaveTypeSeeder ,
+shift_templates ,
+shift_assignments
+Leave
+FK employee_id ; index status ;
+partial or composite index on
+active contracts per employee if
+needed
+leave_types , leave_balances ,
+leave_requests ,
+leave_request_actions
+ShiftAssignmentSeeder
+LeaveBalanceSeeder ,
+LeaveRequestSeeder
+leave_type_id
+Overtime
+Notifications
+overtime_requests
+notifications , device_tokens
+employee_id , date , hours ,
+reason , status , approverFKs to employee and approver;
+indexes on date , status ,
+metadataemployee_id
+Laravel notification payload
+columns, platform ,
+device_token , is_readFK employee_id on device
+tokens if modeled explicitly; index
+is_read , created date; unique
+OvertimeRequestSeeder
+NotificationSeeder ,
+DeviceTokenSeeder
+device_token when appropriate
+Swap Requests and Tasks
+swap_requests , tasks
+requester and target shift
+references, reason, due date, task
+status
+FKs to shifts, employees,
+assignee; indexes on status ,
+employee_id , shift_id ,
+SwapRequestSeeder ,
+TaskSeeder
+due_at
+Recruitment
+job_postings , applicants ,
+applications ,
+application_stage_logs
+Onboarding and Offboarding
+onboarding_checklists ,
+onboarding_tasks ,
+vacancies, closing date, applicant
+contacts, application stage, stage
+commentsFKs to branch, department,
+applicant, posting; indexes on
+status , stage , closing_dateJobPostingSeeder ,
+checklist title, task title, task
+status, completion noteFKs to employee, checklist,
+completer; indexes on status ,OnboardingChecklistSeeder ,
+offboarding_checklists ,
+ApplicantSeeder ,
+ApplicationSeeder
+OffboardingChecklistSeeder
+employee_id
+offboarding_tasks
+Workforce Planning
+headcount_plans ,period , planned_headcount ,
+workforce_forecastsforecast_headcount
+FKs to branch, department, job
+title; unique composite on
+branch_id + department_id +
+job_title_id + period
+HeadcountPlanSeeder ,
+WorkforceForecastSeederCompetency
+Performance
+competencies ,name , description , rating ,
+competency_assessmentscomment
+kpis , scorecards ,
+scorecard_scores
+Training
+courses , course_modules ,
+enrollments , quizzes ,
+FKs to employee and competency;
+indexes on employee_id ,
+competency_id , created dateCompetencySeeder ,
+weight , formula_type , review
+period, aggregate scoreFKs to employee, KPI, scorecard;
+indexes on period and employee
+scopeKpiSeeder , ScorecardSeeder
+publication status, progress
+percent, quiz score, pass flagFKs to course, enrollment,
+employee; indexes on status ,
+employee_id , course_idCourseSeeder ,
+period start and end, run status,
+totals, earning and deduction
+typesFKs to run, employee, payslip;
+indexes on status , branch_id ,
+period columnsPayrollRunSeeder ,
+report module, filter schema
+JSON, run status, row payload
+JSONBIndex module , status , created
+date; FK actor references if
+trackedReportDefinitionSeeder
+actor, event, auditable type,
+before and after dataIndex auditable_type +
+auditable_id , actor_id ,AuditEventTypeSeeder only if
+custom lookup data is needed
+quiz_questions ,
+CompetencyAssessmentSeeder
+EnrollmentSeeder , QuizSeeder
+quiz_attempts
+Payroll
+payroll_runs ,
+payroll_line_items ,
+payslips , payslip_items
+Reports
+report_definitions ,
+report_runs
+Audit
+audit_logs or vendor package
+tables
+PayslipSeeder
+created_at
+Recommended Seeder Order
+1. PermissionSeeder
+2. RoleSeeder
+3. RolePermissionSeeder
+4. BranchSeeder
+5. DepartmentSeeder
+6. JobTitleSeeder
+7. LeaveTypeSeeder
+8. ShiftTemplateSeeder
+9. CompetencySeeder
+10. KpiSeeder
+11. CourseSeeder
+12. ReportDefinitionSeeder
+13. EmployeeSeeder
+14. EmployeeScopeSeeder
+15. ContractSeeder
+16. Remaining transactional demo seeders only for non-production environments
+Seeder Environment Rule
+Production seeders should include only baseline reference data, permissions, roles, and optionally one bootstrap super admin account.
+Demo or QA data belongs in dedicated environment-gated seeders such as Database\\Seeders\\Demo\\... .
+Payroll, attendance, leave requests, and other sensitive transactional data must not be seeded into production.
+Permission Seed Matrix
+Spatie Seeding Rule
+Seed permissions first, then roles, then attach permissions to roles, then attach roles to employees.
+Use a single guard name for API-authenticated users, for example sanctum or web , and keep it consistent across all seeded permissions and roles.
+Treat permissions as the source of truth for backend authorization; roles are only bundles of permissions.
+Prefer explicit permission strings in snake.case format exactly as documented by the API contract.
+Permission Catalog by Module
+ModulePermissions
+RBAC and Scoperoles.view , roles.create , permissions.view , employees.assign_roles ,
+employees.manage_scope
+Organization
+branches.view , branches.create , branches.update , departments.view ,
+departments.create , departments.update , job_titles.view , job_titles.create ,
+job_titles.update
+Employees and Contracts
+employees.view , employees.create , employees.update , contracts.view ,
+contracts.create , contracts.update
+Attendance and Shifts
+attendance.check_in , attendance.check_out , attendance.view ,
+attendance.correct , shifts.view , shifts.create , shifts.update ,
+shifts.assignLeave and Overtime
+leave.view , leave.view_balances , leave.request , leave.approve ,
+leave.adjust_balance , overtime.request , overtime.view , overtime.approve
+Notifications and Self Serviceno additional admin permission required for self inbox and token registration in month-1
+MVP
+Swap Requests and Tasksswap.request , swap.view , swap.approve , tasks.view , tasks.create ,
+tasks.update
+Recruitmentrecruitment.view , recruitment.create , recruitment.update , recruitment.hire
+Onboarding and Offboardingonboarding.view , onboarding.create , onboarding.update , offboarding.view ,
+offboarding.create , offboarding.update
+Planningplanning.view , planning.create
+Competency and Performancecompetencies.view , competencies.create , competencies.assess ,
+performance.view , performance.create , performance.score
+Trainingtraining.view , training.create , training.enroll
+Payroll and Reportspayroll.view , payroll.create , payroll.approve , reports.view ,
+reports.create , reports.run
+Baseline Role Matrix
+RoleIntended UsersSeeded Permissions
+super_adminInitial system ownerAll permissions
+employeeEvery authenticated employeeattendance.check_in , attendance.check_out ,
+leave.request , overtime.request , swap.request
+hr_manager
+HR leadership
+employees.view , employees.create ,
+employees.update , contracts.view ,
+contracts.create , contracts.update ,
+branches.view , departments.view , job_titles.view ,
+leave.view , leave.view_balances , leave.approve ,
+leave.adjust_balance , attendance.view ,
+attendance.correct , reports.view , training.view ,
+competencies.view , performance.view ,
+onboarding.view , offboarding.view
+branch_manager
+Branch-level operations lead
+employees.view , attendance.view ,
+attendance.correct , shifts.view , shifts.assign ,
+leave.view , leave.approve , overtime.view ,
+overtime.approve , swap.view , swap.approve ,
+tasks.view , tasks.create , tasks.update ,
+reports.view
+recruiter
+Recruitment team
+recruitment.view , recruitment.create ,
+recruitment.update , recruitment.hire ,
+employees.view , departments.view , job_titles.view
+payroll_officer
+Payroll processing team
+employees.view , contracts.view , attendance.view ,
+leave.view , overtime.view , payroll.view ,
+payroll.create , payroll.approve , reports.view ,
+reports.run
+learning_and_performance_officer
+Training and performance team
+training.view , training.create , training.enroll ,
+competencies.view , competencies.create ,
+competencies.assess , performance.view ,
+performance.create , performance.score ,
+reports.view
+organization_admin
+Org setup and access administrator
+roles.view , roles.create , permissions.view ,
+employees.assign_roles , employees.manage_scope ,
+branches.view , branches.create , branches.update ,
+departments.view , departments.create ,
+departments.update , job_titles.view ,
+job_titles.create , job_titles.update
+Seeder Class Plan
+creates all permission strings from the catalog above.
+creates super_admin , employee , hr_manager , branch_manager , recruiter , payroll_officer , learning_and_performance_officer , and
+organization_admin .
+RolePermissionSeeder maps role bundles using syncPermissions() .
+AdminUserSeeder creates the first super admin employee and assigns super_admin .
+EmployeeRoleSeeder applies default employee role to normal seeded employees.
+PermissionSeeder
+RoleSeeder
+Seeder Implementation RuleWrap role and permission seeding in idempotent calls such as Permission::findOrCreate() and Role::findOrCreate() .
+Clear cached Spatie permissions before and after seeding via PermissionRegistrar .
+Keep role-to-permission mappings in one source file or config array so tests can assert them directly.
+Delivery Notes
+Backend Must Stay Clean By Design
+No business rules in controllers.
+No policy logic in UI code.
+No duplicate validation rules across clients and backend as source-of-truth.
+No raw database shapes leaked to clients.
+No module-specific response envelopes.
+Working Rule
+The master contract remains the canonical cross-team source.
+This backend split is the day-to-day implementation guide for backend delivery.
