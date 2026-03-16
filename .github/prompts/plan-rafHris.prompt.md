@@ -5,6 +5,24 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 
 ---
 
+## Current Delivery Status
+
+- `Phase 1: Foundation & Infrastructure` is complete.
+- `Phase 2: System & Authentication` is complete.
+- `Phase 4: RBAC & Employee Scope` is complete for the planned Sprint 1 surface.
+- `Phases 3 and 5-16` are not started.
+
+### Completed Tickets
+
+- `HRM-S1-BE-001` completed.
+- `HRM-S1-BE-002` completed.
+- `HRM-S1-BE-003` completed.
+
+### Not Started Tickets
+
+- `HRM-S1-BE-004`
+- `HRM-S1-BE-005`
+
 ## Sprint 1 Execution Checklist (Jira-Aligned)
 
 ### Ticket Order
@@ -77,7 +95,7 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 
 ## Implementation Phases
 
-### Phase 1: Foundation & Infrastructure (Weeks 1-2)
+### Phase 1: Foundation & Infrastructure (Weeks 1-2) [Done]
 **Goal**: Set up Laravel project structure, database schema, authentication, and base patterns.
 
 **Steps**:
@@ -111,7 +129,7 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 
 ---
 
-### Phase 2: System & Authentication Module (Week 2-3, parallel with Phase 1 completion)
+### Phase 2: System & Authentication Module (Week 2-3, parallel with Phase 1 completion) [Done]
 **Goal**: Deliver health check, login, logout, token refresh, auth profile endpoints.
 
 **Steps** (*depends on Phase 1*):
@@ -175,7 +193,7 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 
 ---
 
-### Phase 4: RBAC & Employee Scope Module (Week 4)
+### Phase 4: RBAC & Employee Scope Module (Week 4) [Done]
 **Goal**: Deliver role and permission management, employee scope assignment (branches, departments).
 
 **Steps** (*depends on Phase 3*):

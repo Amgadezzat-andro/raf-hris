@@ -18,8 +18,8 @@ class AuthProfileResource extends JsonResource
             'roles' => $this->getRoleNames()->values(),
             'permissions' => $this->getAllPermissions()->pluck('name')->values(),
             'scopes' => [
-                'branches' => [],
-                'departments' => [],
+                'branches' => $this->branches->pluck('branch_id')->values(),
+                'departments' => $this->departments->pluck('department_id')->values(),
             ],
         ];
     }
