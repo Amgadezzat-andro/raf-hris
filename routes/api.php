@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\ContractController;
+use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\HrCore\BranchController;
 use App\Http\Controllers\Api\V1\HrCore\DepartmentController;
@@ -31,6 +33,17 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/employees/{employee}/roles', [EmployeeRoleController::class, 'store']);
         Route::put('/employees/{employee}/branches/sync', [EmployeeScopeController::class, 'syncBranches']);
         Route::put('/employees/{employee}/departments/sync', [EmployeeScopeController::class, 'syncDepartments']);
+
+        Route::get('/employees', [EmployeeController::class, 'index']);
+        Route::post('/employees', [EmployeeController::class, 'store']);
+        Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
+        Route::put('/employees/{employee}', [EmployeeController::class, 'update']);
+
+        Route::get('/contracts', [ContractController::class, 'index']);
+        Route::get('/contracts/{contract}', [ContractController::class, 'show']);
+        Route::put('/contracts/{contract}', [ContractController::class, 'update']);
+        Route::get('/employees/{employee}/contracts', [ContractController::class, 'indexByEmployee']);
+        Route::post('/employees/{employee}/contracts', [ContractController::class, 'storeForEmployee']);
 
         Route::get('/branches', [BranchController::class, 'index']);
         Route::post('/branches', [BranchController::class, 'store']);

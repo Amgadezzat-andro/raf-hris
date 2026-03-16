@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Models\Employee;
+use App\Models\Contract;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\JobTitle;
+use App\Policies\ContractPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
@@ -33,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Employee::class, EmployeePolicy::class);
+        Gate::policy(Contract::class, ContractPolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(Department::class, DepartmentPolicy::class);
         Gate::policy(JobTitle::class, JobTitlePolicy::class);

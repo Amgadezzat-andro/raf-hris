@@ -11,7 +11,8 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 - `Phase 2: System & Authentication` is complete.
 - `Phase 3: HR Core Module` is complete for the planned Sprint 1 organization master-data surface.
 - `Phase 4: RBAC & Employee Scope` is complete for the planned Sprint 1 surface.
-- `Phases 5-16` are not started.
+- `Phase 5: Employee Management` is complete for the planned Sprint 1 employee/contracts surface.
+- `Phases 6-16` are not started.
 
 ### Completed Tickets
 
@@ -19,10 +20,10 @@ Build a complete Laravel 12 + PostgreSQL HRIS system with 16 modules (Auth, HR C
 - `HRM-S1-BE-002` completed.
 - `HRM-S1-BE-003` completed.
 - `HRM-S1-BE-004` completed.
+- `HRM-S1-BE-005` completed.
 
 ### Not Started Tickets
-
-- `HRM-S1-BE-005`
+- None in Sprint 1.
 
 ## Sprint 1 Execution Checklist (Jira-Aligned)
 
